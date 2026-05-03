@@ -47,38 +47,6 @@ async function startServer() {
     }
   });
 
-  // AI Proxy Route for OpenRouter (User's "anotherapi")
-  app.post('/api/ai/openrouter', async (req, res) => {
-    const { messages, model = 'anthropic/claude-3-haiku' } = req.body;
-    const apiKey = process.env.OPENROUTER_API_KEY;
-
-    if (!apiKey) {
-      return res.status(500).json({ error: 'OPENROUTER_API_KEY not configured' });
-    }
-
-    try {
-      const response = await axios.post(
-        'https://openrouter.ai/api/v1/chat/completions',
-        {
-          model,
-          messages,
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
-            'X-Title': 'Sentinel Code Reviewer',
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-      res.json(response.data);
-    } catch (error: any) {
-      console.error('OpenRouter Error:', error.response?.data || error.message);
-      res.status(error.response?.status || 500).json(error.response?.data || { error: 'Failed to fetch from OpenRouter' });
-    }
-  });
-
   // Vite integration
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
