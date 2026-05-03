@@ -75,15 +75,15 @@ async function startServer() {
   });
 
   // Vite integration
-  if (process.env.NODE_ENV !== 'production') {
-    if (!process.env.VERCEL) {
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: 'spa',
-      });
-      app.use(vite.middlewares);
-    }
-  } else if (!process.env.VERCEL) {
+  if (process.env.VERCEL) {
+    // Vercel serves the built assets and handles SPA routing.
+  } else if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
