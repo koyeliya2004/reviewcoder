@@ -1,0 +1,6 @@
+{
+  "name": "Sentinel Code Reviewer",
+  "description": "An enterprise-grade AI-powered code analysis and refactoring dashboard with real-time debugging chat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["AI Content Generation", "Code Analysis"]
+}
