@@ -3,30 +3,35 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Code2, 
   Search, 
-  MessageSquare, 
+  MessageSquare,
+  X,
+  Send,
+  User,
+  Bot,
+  Sparkles,
+  Move,
+  Shield,
   ShieldCheck, 
   Zap, 
   Terminal, 
   Bug, 
-  Sparkles,
   ChevronRight,
-  Send,
   Loader2,
   AlertCircle,
   Copy,
   LayoutDashboard,
   CheckCircle2,
   XCircle,
-  Info,
-  Download,
   Activity,
   Cpu,
-  Bot,
   History,
   Play,
   RotateCcw,
   Eye,
-  Trash2
+  Trash2,
+  Save,
+  Info,
+  Download
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { GoogleGenAI } from "@google/genai";
@@ -80,9 +85,9 @@ const useAI = () => {
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
-          contents: [{ text: `Deep Review (${language}):\n${code}` }]
+          contents: `Deep Review (${language}):\n${code}`
         });
-        return response.text;
+        return response.text || "PROTOCOL_COMMUNICATION_FAILURE: Analysis result empty.";
       } catch (gemErr) {
         setError('Analysis link severed. Check API configuration.');
         return null;
@@ -121,10 +126,19 @@ const useAI = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
           messages: [
             { 
               role: 'system', 
-              content: `Helpful coding bot. Use markdown. Context code (${language}):\n${code}` 
+              content: `You are SENTINEL_MINI_V2, a high-performance neural coding assistant. 
+              Objective: Provide elite-level technical guidance. 
+              Character: Precise, professional, and mathematically optimized. 
+              Skills: Expert in all programming languages, focus on performance, security, and modern patterns.
+              Constraints: 
+              1. Use Markdown for all formatting. 
+              2. Be concise but thorough. 
+              3. When providing code, ensure it is production-ready.
+              Contextual Data (${language}):\n${code}` 
             },
             ...history.map(h => ({ role: h.role, content: h.content })),
             { role: 'user', content: query }
@@ -132,14 +146,19 @@ const useAI = () => {
         })
       });
       const data = await res.json();
-      return data.choices?.[0]?.message?.content || "Communication error.";
+      return data.choices?.[0]?.message?.content || "PROTOCOL_COMMUNICATION_FAILURE: Neural link lost.";
     } catch (err) {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
-        contents: `Context (${language}):\n${code}\n\nQuery: ${query}`
+        contents: [
+          { role: 'user', parts: [{ text: `Context (${language}):\n${code}\n\nExisting State: ${JSON.stringify(history)}\n\nQuery: ${query}` }] }
+        ],
+        config: {
+          systemInstruction: "You are SENTINEL_MINI_V2, an elite coding assistant. Provide precise, professional technical help using Markdown."
+        }
       });
-      return response.text;
+      return response.text || "PROTOCOL_COMMUNICATION_FAILURE: Neural link lost.";
     }
   };
 
@@ -172,7 +191,272 @@ const useAI = () => {
   return { analyzeCodeDeep, getChatResponse, getQuickAssessment, simulateExecution, loading, error };
 };
 
+// --- SENTINEL MINI V2 COMPONENT ---
+const ROBOT_SIZE = 120;
+const MOVEMENT_SPEED = 4000; 
+const IDLE_TIME = 5000; 
+
+const SentinelMini = ({ code, language, getChatResponse, isMinimized, setIsMinimized }: { 
+  code: string, 
+  language: string, 
+  getChatResponse: any,
+  isMinimized: boolean,
+  setIsMinimized: React.Dispatch<React.SetStateAction<boolean>>
+}) => {
+  const [position, setPosition] = useState({ x: 20, y: 100 });
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [messages, setMessages] = useState([
+    { id: 1, text: "Sentinel Mini V2 online. Monitoring system borders.", sender: 'bot' }
+  ]);
+  const [inputText, setInputText] = useState("");
+  const [isMoving, setIsMoving] = useState(true);
+  const [direction, setDirection] = useState<'left' | 'right'>('right');
+  const [mood, setMood] = useState<'idle' | 'happy' | 'thinking' | 'alert'>('idle');
+
+  const clickCount = useRef(0);
+  const clickTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  const handleInteraction = (e: React.MouseEvent) => {
+    if (isDragging) return;
+    
+    clickCount.current += 1;
+    if (clickCount.current === 1) {
+      clickTimeout.current = setTimeout(() => {
+        if (clickCount.current === 1) {
+          if (!isMinimized) setIsChatOpen(true);
+          else setIsMinimized(false);
+        }
+        clickCount.current = 0;
+      }, 250);
+    } else if (clickCount.current === 2) {
+      if (clickTimeout.current) clearTimeout(clickTimeout.current);
+      setIsMinimized(!isMinimized);
+      setIsChatOpen(false);
+      clickCount.current = 0;
+    }
+  };
+
+  const getNextBorderPosition = useCallback(() => {
+    const margin = 60;
+    const maxX = window.innerWidth - ROBOT_SIZE - margin;
+    const maxY = window.innerHeight - ROBOT_SIZE - margin;
+    
+    // Weighted selection to stay near borders
+    const side = Math.floor(Math.random() * 4); 
+    
+    switch(side) {
+      case 0: return { x: Math.random() * maxX, y: margin }; 
+      case 1: return { x: maxX, y: Math.random() * maxY }; 
+      case 2: return { x: Math.random() * maxX, y: maxY }; 
+      case 3: return { x: margin, y: Math.random() * maxY }; 
+      default: return { x: margin, y: margin };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isChatOpen || isDragging || isHovered || !isMoving || isMinimized) return;
+
+    const moveInterval = setInterval(() => {
+      const nextPos = getNextBorderPosition();
+      setDirection(nextPos.x > position.x ? 'right' : 'left');
+      setPosition(nextPos);
+      
+      if (Math.random() > 0.7) {
+        setMood('alert');
+        setTimeout(() => setMood('idle'), 2000);
+      }
+    }, MOVEMENT_SPEED + IDLE_TIME);
+
+    return () => clearInterval(moveInterval);
+  }, [isChatOpen, isDragging, isHovered, isMoving, position.x, getNextBorderPosition]);
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim()) return;
+
+    const userText = inputText;
+    setMessages(prev => [...prev, { id: Date.now(), text: userText, sender: 'user' }]);
+    setInputText("");
+    setMood('thinking');
+
+    const response = await getChatResponse(code, language, userText, messages.map(m => ({
+      role: m.sender === 'user' ? 'user' : 'assistant',
+      content: m.text
+    })));
+
+    setMessages(prev => [...prev, { 
+      id: Date.now() + 1, 
+      text: response, 
+      sender: 'bot' 
+    }]);
+    setMood('happy');
+    setTimeout(() => setMood('idle'), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden select-none">
+      <AnimatePresence>
+        {isChatOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
+            onClick={() => setIsChatOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        drag
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={(_, info) => {
+          setIsDragging(false);
+          setPosition({ x: info.point.x, y: info.point.y });
+        }}
+        animate={
+          isChatOpen 
+            ? { x: window.innerWidth/2 - 60, y: window.innerHeight/2 - 180, scale: 1, opacity: 1 } 
+            : (isMinimized 
+                ? { x: window.innerWidth - 150, y: -200, scale: 0.1, opacity: 0 } 
+                : { ...position, scale: 1, opacity: 1 })
+        }
+        transition={isDragging ? { duration: 0 } : { type: 'spring', damping: 25, stiffness: 60 }}
+        style={{ width: ROBOT_SIZE }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className="absolute pointer-events-auto cursor-grab active:cursor-grabbing flex flex-col items-center"
+      >
+        <motion.div
+          animate={{ 
+            y: (isMinimized) ? 0 : [0, -8, 0],
+            rotate: mood === 'alert' ? [0, -2, 2, 0] : 0
+          }}
+          transition={{ y: { repeat: Infinity, duration: 4, ease: "easeInOut" } }}
+          onClick={handleInteraction}
+          className="relative group flex flex-col items-center"
+        >
+          <div className="flex space-x-6 mb-[-4px]">
+            <motion.div animate={{ rotate: [-10, 10, -10] }} transition={{ repeat: Infinity, duration: 2 }} className="w-0.5 h-3 bg-dash-accent/50 rounded-full" />
+            <motion.div animate={{ rotate: [10, -10, 10] }} transition={{ repeat: Infinity, duration: 2 }} className="w-0.5 h-3 bg-dash-accent/50 rounded-full" />
+          </div>
+
+          <div className="w-16 h-14 rounded-2xl bg-dash-surface/80 backdrop-blur-md border border-white/10 shadow-xl flex items-center justify-center relative overflow-hidden z-20">
+            <div className="absolute inset-0 bg-gradient-to-br from-dash-accent/10 to-purple-500/10" />
+            
+            <div className={`flex space-x-2 transition-transform duration-500 ${direction === 'left' ? '-scale-x-100' : ''}`}>
+              <motion.div 
+                animate={{ 
+                  scaleY: mood === 'thinking' ? [1, 0.2, 1] : (mood === 'happy' ? 0.5 : [1, 1, 0.1, 1, 1]),
+                  height: mood === 'happy' ? '4px' : '16px'
+                }} 
+                transition={{ repeat: Infinity, duration: 4 }}
+                className="w-2.5 h-4 bg-dash-accent rounded-full shadow-[0_0_12px_rgba(34,211,238,0.9)]" 
+              />
+              <motion.div 
+                animate={{ 
+                  scaleY: mood === 'thinking' ? [1, 0.2, 1] : (mood === 'happy' ? 0.5 : [1, 1, 0.1, 1, 1]),
+                  height: mood === 'happy' ? '4px' : '16px'
+                }} 
+                transition={{ repeat: Infinity, duration: 4, delay: 0.1 }}
+                className="w-2.5 h-4 bg-dash-accent rounded-full shadow-[0_0_12px_rgba(34,211,238,0.9)]" 
+              />
+            </div>
+          </div>
+
+          <div className="w-4 h-2 bg-white/5 border-x border-white/10 z-10" />
+
+          <div className="w-12 h-10 rounded-xl bg-dash-surface/80 backdrop-blur-md border border-white/10 shadow-lg relative flex items-center justify-center">
+             <motion.div 
+              animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1, 0.8] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className={`w-4 h-4 rounded-full shadow-[0_0_8px] ${mood === 'alert' ? 'bg-red-500 shadow-red-500' : 'bg-dash-accent shadow-dash-accent'}`}
+             />
+
+             <div className="absolute -left-5 top-2 flex items-center">
+                <motion.div 
+                  animate={{ rotate: isHovered ? [0, 45, 0] : [-5, 5, -5] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="w-5 h-1.5 bg-white/20 rounded-full origin-right"
+                />
+                <div className="w-2 h-2 rounded-full bg-dash-accent/40 border border-white/10 -ml-1" />
+             </div>
+             <div className="absolute -right-5 top-2 flex items-center flex-row-reverse">
+                <motion.div 
+                  animate={{ rotate: isHovered ? [0, -45, 0] : [5, -5, 5] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                  className="w-5 h-1.5 bg-white/20 rounded-full origin-left"
+                />
+                <div className="w-2 h-2 rounded-full bg-dash-accent/40 border border-white/10 -mr-1" />
+             </div>
+          </div>
+
+          <AnimatePresence>
+            {isHovered && !isChatOpen && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                exit={{ opacity: 0, y: 10 }}
+                className="absolute -top-16 bg-black/90 backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] text-dash-accent border border-dash-accent/30 font-bold tracking-widest uppercase whitespace-nowrap"
+              >
+                Sentinel_Mini_V2
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </motion.div>
+
+      <AnimatePresence>
+        {isChatOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }} 
+            animate={{ opacity: 1, scale: 1 }} 
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[95%] max-w-[420px] h-[500px] bg-dash-bg/95 backdrop-blur-2xl border border-white/10 rounded-[2rem] shadow-2xl overflow-hidden pointer-events-auto flex flex-col mb-10"
+          >
+            <div className="p-5 border-b border-white/5 flex items-center justify-between bg-dash-surface/30">
+              <div className="flex items-center space-x-3">
+                <Shield size={18} className="text-dash-accent" />
+                <h3 className="text-white text-[10px] font-mono font-bold tracking-[0.2em] uppercase">NEURAL INTERFACE</h3>
+              </div>
+              <button onClick={() => setIsChatOpen(false)} className="p-2 hover:bg-white/5 rounded-full text-dash-muted transition-colors"><X size={20} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+              {messages.map((msg) => (
+                <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`px-5 py-3 rounded-2xl text-[12px] font-mono leading-relaxed max-w-[85%] ${
+                    msg.sender === 'user' 
+                      ? 'bg-dash-accent/10 text-dash-accent border border-dash-accent/20' 
+                      : 'bg-dash-surface text-dash-text border border-white/5 shadow-lg'
+                    }`}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleSendMessage} className="p-6 bg-dash-surface/20 border-t border-white/5">
+              <div className="relative flex items-center">
+                <input
+                  type="text" 
+                  value={inputText} 
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Transmit neural request..."
+                  className="w-full bg-dash-bg border border-white/10 rounded-2xl py-4 px-5 text-[12px] font-mono text-white focus:border-dash-accent/50 outline-none transition-all placeholder:text-dash-muted/30"
+                />
+                <button type="submit" className="absolute right-3 p-2 text-dash-accent hover:scale-110 transition-transform"><Send size={20} /></button>
+              </div>
+            </form>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export default function App() {
+  const [view, setView] = useState<'home' | 'app'>('home');
   const [code, setCode] = useState('// SENTINEL_SYSTEM_BOOT_SEQUENCE\nconsole.log("Initializing Neural Core...");\n\nconst data = {\n  status: "OPTIMAL",\n  load: Math.random() * 100,\n  timestamp: new Date().toISOString()\n};\n\nconsole.log("System Metrics:", data);\n\nif (data.load > 50) {\n  console.warn("High neuronal load detected!");\n} else {\n  console.info("Neural flux stable.");\n}\n\n// Try some math\nconst result = [1, 2, 3].map(x => x * x);\nconsole.log("Computation result:", result);');
   const [language, setLanguage] = useState(LANGUAGES[0]);
   const [analysis, setAnalysis] = useState<string | null>(null);
@@ -182,7 +466,8 @@ export default function App() {
   const [chatInp, setChatInp] = useState('');
   const [logs, setLogs] = useState<{ type: 'log' | 'info' | 'error', message: string, time: string }[]>([]);
   const [runCount, setRunCount] = useState(0);
-  const [isSplit, setIsSplit] = useState(true);
+  const [isSplit, setIsSplit] = useState(false);
+  const [isBotMinimized, setIsBotMinimized] = useState(false);
   const [liveMode, setLiveMode] = useState(true);
   const [historyLedger, setHistoryLedger] = useState<{ id: string, date: string, code: string, analysis: string, lang: string }[]>([]);
   
@@ -236,43 +521,69 @@ export default function App() {
   }, [code, language, liveMode]);
 
   const handleRun = async () => {
+    if (loading) return;
     setLogs([]);
     setRunCount(prev => prev + 1);
     setActiveTab('output');
+    
+    if (window.innerWidth > 1024) {
+      setIsSplit(true);
+    }
+
+    const timestamp = () => new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     if (language.type === 'simulated') {
-      const startTime = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setLogs([{
         type: 'info',
         message: `>>> INITIATING NEURAL_SIMULATION (${language.name.toUpperCase()})`,
-        time: startTime
+        time: timestamp()
       }]);
       
       const simulatedResult = await simulateExecution(code, language.name);
       
-      // Split the result by lines to handle sequential logs if the LLM provided multiple lines
-      const outputLines = simulatedResult.split('\n');
+      const outputLines = simulatedResult.split('\n').filter(l => l.trim() !== '');
+      if (outputLines.length === 0) {
+        setLogs(prev => [...prev, {
+          type: 'log',
+          message: '[Sentinel Root: Execution successful, 0 bytes returned]',
+          time: timestamp()
+        }]);
+      }
+
       outputLines.forEach((line: string, index: number) => {
         setTimeout(() => {
           setLogs(prev => [...prev, {
             type: 'log',
-            message: line || ' ',
-            time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            message: line,
+            time: timestamp()
           }]);
 
           if (index === outputLines.length - 1) {
             setLogs(prev => [...prev, {
               type: 'info',
               message: `>>> NEURAL_SIMULATION_SUCCESS [CPU_LATENCY: ${Math.floor(Math.random() * 50)}ms]`,
-              time: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+              time: timestamp()
             }]);
           }
-        }, index * 100);
+        }, index * 60);
       });
     }
   };
 
-  // Console message listener
+  const saveSession = () => {
+    const newItem = {
+      id: Date.now().toString(),
+      date: new Date().toLocaleString(),
+      code,
+      analysis: analysis || 'No audit performed.',
+      lang: language.name,
+      logs: [...logs]
+    };
+    const updated = [newItem, ...historyLedger].slice(0, 50);
+    setHistoryLedger(updated);
+    localStorage.setItem('sentinel_v2_history', JSON.stringify(updated));
+    // Brief visual feedback could go here if needed, but the tab switch/update is usually enough
+  };
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data && event.data.source === 'SENTINEL_SANDBOX') {
@@ -408,13 +719,17 @@ export default function App() {
           };
 
           window.addEventListener('unhandledrejection', (event) => {
-            send('error', ['Unhandled Promise Rejection: ' + (event.reason?.message || event.reason)]);
+            const reason = event.reason?.message || String(event.reason || '');
+            if (reason.includes('WebSocket') || reason.includes('vite')) return;
+            send('error', ['Unhandled Promise Rejection: ' + reason]);
           });
           
           // Initial connection ping
           setTimeout(() => {
-            window.parent.postMessage({ source: 'SENTINEL_SANDBOX', type: 'info', message: 'Runtime Session #' + ${runCount} + ' Init' }, '*');
-          }, 50);
+            if (window.parent) {
+              window.parent.postMessage({ source: 'SENTINEL_SANDBOX', type: 'info', message: 'Runtime Session Initialized...' }, '*');
+            }
+          }, 100);
         })();
       </script>
     `;
@@ -462,10 +777,91 @@ export default function App() {
     `;
   }, [code, language, runCount]);
 
+  if (view === 'home') {
+    return (
+      <div className="min-h-screen bg-black text-white selection:bg-dash-accent selection:text-black overflow-hidden relative">
+        {/* Background Animation */}
+        <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
+          <div className="absolute top-0 left-0 w-full h-full technical-grid" />
+          <motion.div 
+            animate={{ 
+              background: [
+                'radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.1) 0%, transparent 50%)',
+                'radial-gradient(circle at 20% 80%, rgba(0, 255, 0, 0.15) 0%, transparent 50%)',
+                'radial-gradient(circle at 80% 20%, rgba(0, 255, 0, 0.1) 0%, transparent 50%)',
+                'radial-gradient(circle at 50% 50%, rgba(0, 255, 0, 0.1) 0%, transparent 50%)'
+              ]
+            }}
+            transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+            className="absolute inset-0"
+          />
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-6 pt-32 pb-20">
+          <motion.div 
+             initial={{ opacity: 0, y: 30 }}
+             animate={{ opacity: 1, y: 0 }}
+             transition={{ duration: 0.8, ease: "easeOut" }}
+             className="flex flex-col items-center text-center"
+          >
+            <div className="flex items-center gap-3 mb-8 px-4 py-2 rounded-full border border-dash-accent/30 bg-dash-accent/5 backdrop-blur-sm">
+              <ShieldCheck className="w-4 h-4 text-dash-accent animate-pulse" />
+              <span className="text-[10px] font-mono tracking-[0.2em] font-bold text-dash-accent uppercase">Neural Core v2.5 Online</span>
+            </div>
+            
+            <h1 className="text-7xl md:text-9xl font-mono font-bold tracking-tighter mb-6 leading-[0.85] text-white">
+              SENTINEL<span className="text-dash-accent">_</span>CR
+            </h1>
+            
+            <p className="max-w-2xl text-dash-muted font-mono uppercase tracking-widest text-xs md:text-sm mb-12 leading-relaxed opacity-80">
+              The next generation of autonomous code execution and neural auditing. 
+              Built for speed. Engineered for precision.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-6">
+              <button 
+                onClick={() => setView('app')}
+                className="group relative px-10 py-5 bg-dash-accent text-dash-bg font-mono font-bold text-lg hover:scale-105 active:scale-95 transition-all shadow-[0_0_30px_rgba(0,255,0,0.3)]"
+              >
+                LAUNCH_CORE
+                <span className="absolute -top-1 -left-1 w-2 h-2 bg-white" />
+                <span className="absolute -bottom-1 -right-1 w-2 h-2 bg-white" />
+              </button>
+              
+              <button className="px-10 py-5 border border-white/20 bg-white/5 font-mono font-bold text-lg hover:bg-white/10 transition-all flex items-center gap-3">
+                <Terminal className="w-5 h-5" />
+                VIEW_DOCS
+              </button>
+            </div>
+
+            <div className="mt-32 grid grid-cols-1 md:grid-cols-3 gap-1 px-6 w-full max-w-5xl border border-white/10 bg-white/5 backdrop-blur-sm">
+              {[
+                { label: 'Latency', value: '4.2MS', desc: 'Predictive neural execution core.' },
+                { label: 'Uptime', value: '99.99%', desc: 'Distributed cluster redundancy.' },
+                { label: 'Security', value: 'LEVEL_7', desc: 'Hardware-level sandbox isolation.' }
+              ].map((stat, i) => (
+                <div key={i} className="p-8 border-white/10 text-left hover:bg-dash-accent/5 transition-colors group">
+                  <div className="text-[10px] font-mono text-dash-muted mb-2 uppercase tracking-tighter">{stat.label}</div>
+                  <div className="text-3xl font-mono font-bold mb-4 group-hover:text-dash-accent transition-colors">{stat.value}</div>
+                  <p className="text-[10px] font-mono text-dash-muted tracking-tight">{stat.desc}</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Floating elements */}
+        <div className="absolute top-1/4 -left-10 w-40 h-40 border border-white/5 rounded-full animate-[spin_20s_linear_infinite]" />
+        <div className="absolute bottom-1/4 -right-10 w-60 h-60 border border-dash-accent/5 rounded-full animate-[spin_30s_linear_infinite]" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen technical-grid text-dash-text font-sans flex flex-col overflow-hidden">
       <header className="h-16 border-b border-dash-border bg-dash-bg/80 backdrop-blur-md flex items-center justify-between px-6 z-20">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('home')}>
           <div className="w-8 h-8 bg-dash-accent rounded flex items-center justify-center">
             <ShieldCheck className="text-dash-bg w-5 h-5" />
           </div>
@@ -550,6 +946,14 @@ export default function App() {
             </div>
             <div className="flex gap-4">
                <div className="flex items-center gap-3 text-[10px] font-mono text-dash-muted">
+                {isBotMinimized && (
+                  <button 
+                    onClick={() => setIsBotMinimized(false)}
+                    className="flex items-center gap-1.5 px-2 py-0.5 bg-dash-accent/20 border border-dash-accent/30 text-dash-accent rounded hover:bg-dash-accent hover:text-dash-bg transition-all font-bold animate-pulse"
+                  >
+                    <Bot className="w-3 h-3" /> AI
+                  </button>
+                )}
                 <span className="flex items-center gap-1"><Activity className="w-3 h-3" /> {codeMetrics.lines}L</span>
                 <span className="flex items-center gap-1"><Cpu className="w-3 h-3" /> {codeMetrics.complexity}</span>
               </div>
@@ -565,24 +969,6 @@ export default function App() {
               spellCheck={false}
             />
             
-            <motion.div className="absolute bottom-8 right-8 z-30 flex flex-col items-end pointer-events-none">
-              <AnimatePresence>
-                {quickStatus.message && (
-                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="bg-dash-surface border border-dash-border p-3 rounded-lg mb-3 max-w-[240px] shadow-2xl relative pointer-events-auto">
-                    <div className="text-[10px] text-dash-muted mb-1 font-mono uppercase tracking-tighter">Sentinel_Scan</div>
-                    <p className="text-[11px] leading-snug">{quickStatus.message}</p>
-                    <div className="absolute -bottom-1 right-6 w-2 h-2 bg-dash-surface border-r border-b border-dash-border rotate-45" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              <button 
-                onClick={() => setActiveTab('chat')} 
-                className="pointer-events-auto w-12 h-12 rounded-full flex items-center justify-center shadow-lg border border-dash-accent bg-dash-accent/10 text-dash-accent hover:bg-dash-accent hover:text-dash-bg transition-all"
-              >
-                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Bot className="w-6 h-6" />}
-              </button>
-            </motion.div>
-
             {loading && (
               <div className="absolute inset-0 bg-dash-bg/40 backdrop-blur-[1px] flex items-center justify-center z-10 text-center">
                 <div>
@@ -629,12 +1015,20 @@ export default function App() {
                   <div className="flex items-center gap-2 text-[11px] font-mono text-dash-muted">
                     <Play className="w-3.5 h-3.5" /> LIVE_PREVIEW_SANDBOX
                   </div>
-                  <button 
-                    onClick={() => setLogs([])}
-                    className="text-[10px] font-mono text-dash-muted hover:text-dash-accent flex items-center gap-1"
-                  >
-                    <RotateCcw className="w-3 h-3" /> CLEAR_LOGS
-                  </button>
+                  <div className="flex gap-4">
+                    <button 
+                      onClick={saveSession}
+                      className="text-[10px] font-mono text-dash-accent hover:text-white flex items-center gap-1.5 px-2 py-0.5 border border-dash-accent/30 rounded"
+                    >
+                      <Save className="w-3 h-3" /> SAVE_SESSION
+                    </button>
+                    <button 
+                      onClick={() => setLogs([])}
+                      className="text-[10px] font-mono text-dash-muted hover:text-dash-accent flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-3 h-3" /> CLEAR_LOGS
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Visual Preview / Simulation View */}
@@ -737,15 +1131,41 @@ export default function App() {
 
             {activeTab === 'history' && (
               <motion.div key="history" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 flex flex-col overflow-hidden">
-                <div className="h-10 border-b border-dash-border flex items-center px-4 bg-dash-surface/30 text-[11px] font-mono text-dash-muted">
-                  <History className="w-3 h-3 mr-2" /> ARCHIVED_REVIEWS
+                <div className="h-10 border-b border-dash-border flex items-center justify-between px-4 bg-dash-surface/30 text-[11px] font-mono text-dash-muted">
+                  <div className="flex items-center">
+                    <History className="w-3 h-3 mr-2" /> ARCHIVED_SESSIONS
+                  </div>
+                  {historyLedger.length > 0 && (
+                    <button 
+                      onClick={() => {
+                        setHistoryLedger([]);
+                        localStorage.removeItem('sentinel_v2_history');
+                      }}
+                      className="text-[9px] text-red-500/60 hover:text-red-500 flex items-center gap-1 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" /> WIPE_ALL
+                    </button>
+                  )}
                 </div>
                 <div className="flex-1 overflow-y-auto p-6 space-y-3 custom-scrollbar">
                   {historyLedger.length === 0 && <div className="text-center text-dash-muted opacity-20 font-mono mt-20">NO_ARCHIVES</div>}
-                  {historyLedger.map((item) => (
-                    <div key={item.id} className="p-4 glass-panel rounded-lg hover:border-dash-accent transition-colors group relative cursor-pointer" onClick={() => { setCode(item.code); setAnalysis(item.analysis); setActiveTab('review'); }}>
+                  {historyLedger.map((item: any) => (
+                    <div key={item.id} className="p-4 glass-panel rounded-lg hover:border-dash-accent transition-colors group relative cursor-pointer" onClick={() => { 
+                      setCode(item.code); 
+                      setAnalysis(item.analysis); 
+                      if (item.logs) {
+                        setLogs(item.logs);
+                        setActiveTab('output');
+                      } else {
+                        setActiveTab('review');
+                      }
+                    }}>
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-[10px] font-mono text-dash-accent">{item.lang}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-dash-accent">{item.lang}</span>
+                          {item.logs && <span className="text-[8px] bg-dash-accent/20 text-dash-accent px-1.5 rounded-full font-mono uppercase">Session</span>}
+                          {!item.logs && <span className="text-[8px] bg-dash-surface text-dash-muted px-1.5 rounded-full font-mono uppercase">Audit</span>}
+                        </div>
                         <span className="text-[9px] text-dash-muted">{item.date}</span>
                       </div>
                       <p className="text-[11px] text-dash-muted truncate font-mono opacity-50">{item.code.substring(0, 80)}...</p>
@@ -766,6 +1186,13 @@ export default function App() {
         </div>
         <div className="flex items-center gap-4 opacity-50"><ShieldCheck className="w-3 h-3" /> ENCRYPTED_MOD_V2</div>
       </footer>
+      <SentinelMini 
+        code={code} 
+        language={language.name} 
+        getChatResponse={getChatResponse} 
+        isMinimized={isBotMinimized}
+        setIsMinimized={setIsBotMinimized}
+      />
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 5px; } .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); } .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--color-dash-border); border-radius: 10px; } textarea { caret-color: var(--color-dash-accent); } .technical-grid { background-image: radial-gradient(circle at 1px 1px, #1e1e1e 1px, transparent 0); background-size: 20px 20px; }`}</style>
     </div>
   );
