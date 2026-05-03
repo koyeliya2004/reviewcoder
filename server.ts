@@ -58,17 +58,16 @@ async function startServer() {
 
     try {
       const { GoogleGenAI } = await import('@google/genai');
-      const genAI = new GoogleGenAI(apiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-3-flash-preview",
-        systemInstruction: systemInstruction 
-      });
-
-      const result = await model.generateContent({
-        contents: contents || [{ role: 'user', parts: [{ text: `Context: ${context}\n\nQuery: ${query}` }] }]
+      const genAI = new GoogleGenAI({ apiKey });
+      const result = await genAI.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: contents || [
+          { role: 'user', parts: [{ text: `Context: ${context ?? ''}\n\nQuery: ${query ?? ''}` }] }
+        ],
+        config: systemInstruction ? { systemInstruction } : undefined,
       });
       
-      res.json({ text: result.response.text() });
+      res.json({ text: result.text });
     } catch (error: any) {
       console.error('Gemini Error:', error.message);
       res.status(500).json({ error: 'Failed to fetch from Gemini' });

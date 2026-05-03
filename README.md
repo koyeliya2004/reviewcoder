@@ -15,6 +15,11 @@ View your app in AI Studio: https://ai.studio/apps/80345b35-fbd0-4753-9d9f-1b888
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Set `GEMINI_API_KEY` and `GROQ_API_KEY` in your local `.env` file (see `.env.example`).
 3. Run the app:
    `npm run dev`
+
+## Deploy to Vercel
+
+1. Set the `GEMINI_API_KEY` and `GROQ_API_KEY` environment variables in Vercel.
+2. Deploy the project; Vercel will build the Vite app and run the API routes under `/api/*`.
