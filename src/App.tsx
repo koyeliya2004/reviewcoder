@@ -34,7 +34,6 @@ import {
   Download
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { GoogleGenAI } from "@google/genai";
 
 const LANGUAGES = [
   { id: 'typescript', name: 'TypeScript', ext: 'tsx', runnable: true, type: 'web' },
@@ -82,12 +81,16 @@ const useAI = () => {
       console.error('Deep Analysis Error:', err);
       // Fallback to Gemini if Groq fails
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: `Deep Review (${language}):\n${code}`
+        const res = await fetch('/api/ai/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            context: `Deep Review (${language})`,
+            query: code
+          })
         });
-        return response.text || "PROTOCOL_COMMUNICATION_FAILURE: Analysis result empty.";
+        const data = await res.json();
+        return data.text || "PROTOCOL_COMMUNICATION_FAILURE: Analysis result empty.";
       } catch (gemErr) {
         setError('Analysis link severed. Check API configuration.');
         return null;
@@ -148,17 +151,22 @@ const useAI = () => {
       const data = await res.json();
       return data.choices?.[0]?.message?.content || "PROTOCOL_COMMUNICATION_FAILURE: Neural link lost.";
     } catch (err) {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          { role: 'user', parts: [{ text: `Context (${language}):\n${code}\n\nExisting State: ${JSON.stringify(history)}\n\nQuery: ${query}` }] }
-        ],
-        config: {
-          systemInstruction: "You are SENTINEL_MINI_V2, an elite coding assistant. Provide precise, professional technical help using Markdown."
-        }
-      });
-      return response.text || "PROTOCOL_COMMUNICATION_FAILURE: Neural link lost.";
+      try {
+        const res = await fetch('/api/ai/gemini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            systemInstruction: "You are SENTINEL_MINI_V2, an elite coding assistant. Provide precise, professional technical help using Markdown.",
+            contents: [
+              { role: 'user', parts: [{ text: `Context (${language}):\n${code}\n\nExisting State: ${JSON.stringify(history)}\n\nQuery: ${query}` }] }
+            ]
+          })
+        });
+        const data = await res.json();
+        return data.text || "PROTOCOL_COMMUNICATION_FAILURE: Neural link lost.";
+      } catch (gemErr) {
+        return "PROTOCOL_COMMUNICATION_FAILURE: Neural link lost.";
+      }
     }
   };
 

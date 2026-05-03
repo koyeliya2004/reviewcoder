@@ -47,6 +47,34 @@ async function startServer() {
     }
   });
 
+  // AI Proxy Route for Gemini (Production Ready)
+  app.post('/api/ai/gemini', async (req, res) => {
+    const { contents, context, query, systemInstruction } = req.body;
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
+
+    try {
+      const { GoogleGenAI } = await import('@google/genai');
+      const genAI = new GoogleGenAI(apiKey);
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-3-flash-preview",
+        systemInstruction: systemInstruction 
+      });
+
+      const result = await model.generateContent({
+        contents: contents || [{ role: 'user', parts: [{ text: `Context: ${context}\n\nQuery: ${query}` }] }]
+      });
+      
+      res.json({ text: result.response.text() });
+    } catch (error: any) {
+      console.error('Gemini Error:', error.message);
+      res.status(500).json({ error: 'Failed to fetch from Gemini' });
+    }
+  });
+
   // Vite integration
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -62,9 +90,15 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only listen when running locally
+  if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
+
+  return app;
 }
 
-startServer();
+const appPromise = startServer();
+export default appPromise;
