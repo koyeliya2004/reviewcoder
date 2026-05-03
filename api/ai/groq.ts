@@ -1,5 +1,16 @@
 import axios from 'axios';
 
+type ApiRequest = {
+  method?: string;
+  body?: unknown;
+};
+
+type ApiResponse = {
+  status: (code: number) => ApiResponse;
+  json: (body: unknown) => void;
+  setHeader: (name: string, value: string) => void;
+};
+
 const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
 
 const parseBody = (body: unknown) => {
@@ -16,7 +27,7 @@ const parseBody = (body: unknown) => {
   return body as Record<string, unknown>;
 };
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });

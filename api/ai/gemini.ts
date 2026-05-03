@@ -1,4 +1,16 @@
 import { GoogleGenAI } from '@google/genai';
+import type { ContentListUnion } from '@google/genai';
+
+type ApiRequest = {
+  method?: string;
+  body?: unknown;
+};
+
+type ApiResponse = {
+  status: (code: number) => ApiResponse;
+  json: (body: unknown) => void;
+  setHeader: (name: string, value: string) => void;
+};
 
 const parseBody = (body: unknown) => {
   if (!body) {
@@ -14,7 +26,7 @@ const parseBody = (body: unknown) => {
   return body as Record<string, unknown>;
 };
 
-export default async function handler(req: any, res: any) {
+export default async function handler(req: ApiRequest, res: ApiResponse) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
@@ -26,13 +38,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const { contents, context, query, systemInstruction } = parseBody(req.body) as {
-    contents?: unknown;
+    contents?: ContentListUnion;
     context?: string;
     query?: string;
     systemInstruction?: string;
   };
 
-  const resolvedContents =
+  const resolvedContents: ContentListUnion =
     contents ||
     [
       {
@@ -49,7 +61,7 @@ export default async function handler(req: any, res: any) {
     const genAI = new GoogleGenAI({ apiKey });
     const response = await genAI.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: resolvedContents as any,
+      contents: resolvedContents,
       config: systemInstruction ? { systemInstruction } : undefined,
     });
     return res.status(200).json({ text: response.text });
